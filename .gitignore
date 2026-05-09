@@ -1,0 +1,14 @@
+__pycache__/
+
+.Python
+env/
+build/
+dist/
+downloads/
+
+db.sqlite3
+media/
+local_settings.py
+.env
+
+.vscode/
