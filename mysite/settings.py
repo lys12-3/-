@@ -11,7 +11,26 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import environ
 from pathlib import Path
+
+# 1. 환경 변수를 읽어올 객체 생성
+env = environ.Env(
+    DEBUG=(bool, False) # 기본값 설정
+)
+
+# 2. .env 파일을 읽어오기
+BASE_DIR = Path(__file__).resolve().parent.parent
+environ.Env.read_env(BASE_DIR / '.env')
+
+# 3. 코드에서 사용하기 
+SECRET_KEY = env('SECRET_KEY')
+DEBUG = env('DEBUG')
+#TMAP_APP_KEY = env('TMAP_APP_KEY')
+TMAP_APP_KEY = env('TMAP_APP_KEY')
+#위에 TMAP_APP_KEY = env('TMAP_APP_KEY') 이거 한줄 지우시고 밑에 줄에 있는 주석 # 빼고 입력하시면 돼요
+#TMAP_APP_KEY = "qUnTOF5CvF5pb0wbvQ13b83kErTAvFDSa4OsT6Dt"
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,9 +38,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-c$$_m8j4yws-=mtwej1k&8$3uyw^%#z$j*tubqz)s*103ye1(f'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -104,9 +120,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ko-kr'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Seoul'
 
 USE_I18N = True
 
@@ -117,7 +133,6 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = '/static/'
-TMAP_APP_KEY = os.environ.get('TMAP_APP_KEY', 'qUnTOF5CvF5pb0wbvQ13b83kErTAvFDSa4OsT6Dt')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
