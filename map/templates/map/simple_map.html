@@ -44,10 +44,10 @@
 				url:"https://apis.openapi.sk.com/tmap/pois?version=1&format=json&callback=result",
 				async:false,
 				data:{
-					"searchKeyword" : searchKeyword,
+					"searchKeyword" : searchKeyword,//검색 키워드
 					"resCoordType" : "EPSG3857",
 					"reqCoordType" : "WGS84GEO",
-					"count" : 5
+					"count" : 5 //검색 결과 최대 5개까지
 				},
 
 				success:function(response){
@@ -61,7 +61,7 @@
 						markerArr = [];
 					}
 
-					var resultHtml = "";
+					var resultHtml = ""; // 검색 결과 HTML 초기화
 
 					for(var k in resultpoisData){
 
@@ -104,9 +104,9 @@
 							map.setCenter(markerPosition);
 						}
 					}
-					$("#searchResult").html(resultHtml);
+					$("#searchResult").html(resultHtml); // 검색 결과 HTML 업데이트
 
-					$(".search-item").click(function(){
+					$(".search-item").click(function(){ // 검색 결과 항목 클릭 시
 
 						$(".search-item").css("background", ""); // 모든 항목 배경 초기화
 
@@ -221,11 +221,11 @@
 							var pType = "";
 							var size;
 
-							if (properties.pointType == "S") { //출발지 마커
+							if (properties.pointType == "S") { //출발지 마커 수정 필요
 								markerImg = "https://apis.openapi.sk.com/tmap/imgs/marker/pin_r_m_s.png";
 								pType = "S";
 								size = new Tmapv2.Size(24, 38);
-							} else if (properties.pointType == "E") { //도착지 마커
+							} else if (properties.pointType == "E") { //도착지 마커 수정 필요
 								markerImg = "https://apis.openapi.sk.com/tmap/imgs/marker/pin_r_m_e.png";
 								pType = "E";
 								size = new Tmapv2.Size(24, 38);
