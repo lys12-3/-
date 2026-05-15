@@ -24,13 +24,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 environ.Env.read_env(BASE_DIR / '.env')
 
 # 3. 코드에서 사용하기 
-SECRET_KEY = env('SECRET_KEY')
+SECRET_KEY = 'django-insecure-c$$_m8j4yws-=mtwej1k&8$3uyw^%#z$j*tubqz)s*103ye1(f'
 DEBUG = env('DEBUG')
 #TMAP_APP_KEY = env('TMAP_APP_KEY')
-TMAP_APP_KEY = env('TMAP_APP_KEY')
-#위에 TMAP_APP_KEY = env('TMAP_APP_KEY') 이거 한줄 지우시고 밑에 줄에 있는 주석 # 빼고 입력하시면 돼요
+TMAP_APP_KEY = 'qUnTOF5CvF5pb0wbvQ13b83kErTAvFDSa4OsT6Dt'
 #TMAP_APP_KEY = "qUnTOF5CvF5pb0wbvQ13b83kErTAvFDSa4OsT6Dt"
 
+ALLOWED_HOSTS = []
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -42,7 +42,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
