@@ -3,328 +3,324 @@
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<title>simpleMap</title>
+<title>안전 경로 탐색</title>
 <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
 <link rel="stylesheet" href="{% static 'map/styles.css' %}">
 <script src="https://apis.openapi.sk.com/tmap/jsv2?version=1&appKey={{ tmap_app_key }}"></script>
+<style>
+    .route-card {
+        display: inline-block;
+        border: 2px solid #ccc;
+        border-radius: 6px;
+        padding: 6px 10px;
+        margin: 4px;
+        cursor: pointer;
+        font-size: 13px;
+        background: #f9f9f9;
+        vertical-align: top;
+        min-width: 90px;
+        text-align: center;
+    }
+    .route-card:hover  { background: #e8e8e8; }
+    .route-card.active { border-color: #DD0000; background: #fff0f0; }
+    .route-card .score { font-size: 18px; font-weight: bold; }
+    .route-card .label { font-size: 11px; color: #666; }
+</style>
 <script type="text/javascript">
-	var map;
-	var marker_s, marker_e, marker_p1, marker_p2;
-	var totalMarkerArr = [];
-	var drawInfoArr = [];
-	var resultdrawArr = [];
-	var markerArr = [];
-	var selectedLat_e;
-	var selectedLon_e;
+    var map;
+    var markerArr     = [];
+    var routeData     = [];
 
-	function initTmap() {
-		try {
-			console.log("지도 초기화 시작");
-			// 1. 지도 띄우기
-			map = new Tmapv2.Map("map_div", {
-			center : new Tmapv2.LatLng(37.56259379, 126.99243652),
-				width : "100%",
-				height : "400px",
-				zoom : 17,
-				zoomControl : true,
-				scrollwheel : true
-			});
-			console.log("지도 생성 완료");
+    var selectedLat_s = null, selectedLon_s = null;
+    var selectedLat_e = null, selectedLon_e = null;
 
-			$("#btn_select").click(function(){
+    var routeConfigs = [
+        { name: "추천",     searchOption: "0"  },
+        { name: "대로우선", searchOption: "4"  },
+        { name: "최단",     searchOption: "10" },
+        { name: "계단제외", searchOption: "30" }
+    ];
 
-			var searchKeyword = $('#searchKeyword').val();
+    var routeColors = ["#DD0000", "#0055FF", "#009900", "#FF8800"];
 
-			var headers = {};
-			headers["appKey"] = "{{ tmap_app_key }}";
+    // 경로별 폴리라인/마커 저장
+    var activeLines   = {};   // idx → Polyline
+    var activeFacMarkers = {}; // idx → [Marker, ...]
 
-			$.ajax({
-				method:"GET",
-				headers : headers,
-				url:"https://apis.openapi.sk.com/tmap/pois?version=1&format=json&callback=result",
-				async:false,
-				data:{
-					"searchKeyword" : searchKeyword,//검색 키워드
-					"resCoordType" : "EPSG3857",
-					"reqCoordType" : "WGS84GEO",
-					"count" : 5 //검색 결과 최대 5개까지
-				},
+    // 시설 타입별 마커 이미지 URL
+    var facilityIcons = {
+        "police":     "{% static 'map/images/police.png' %}",
+        "cctv":       "{% static 'map/images/cctv.png' %}",
+        "security":   "{% static 'map/images/security.png' %}",
+        "streetlamp": "{% static 'map/images/lamp.png' %}",
+        "default":    "{% static 'map/images/default.png' %}"
+    };
 
-				success:function(response){
+    // 시설 타입 한글명
+    var facilityLabel = {
+        "police":     "경찰",
+        "cctv":       "CCTV",
+        "security":   "보안등",
+        "streetlamp": "가로등"
+    };
 
-					var resultpoisData = response.searchPoiInfo.pois.poi;
+    function initTmap() {
+        map = new Tmapv2.Map("map_div", {
+            center: new Tmapv2.LatLng(37.56259379, 126.99243652),
+            width: "100%", height: "400px",
+            zoom: 17, zoomControl: true, scrollwheel: true
+        });
 
-					if(markerArr.length > 0){
-						for(var i in markerArr){
-							markerArr[i].setMap(null);
-						}
-						markerArr = [];
-					}
+        $("#btn_current").click(function () {
+            navigator.geolocation.getCurrentPosition(function (pos) {
+                selectedLat_s = pos.coords.latitude;
+                selectedLon_s = pos.coords.longitude;
+                $("#start_result").text("현위치 (" + selectedLat_s.toFixed(5) + ", " + selectedLon_s.toFixed(5) + ")");
+                map.setCenter(new Tmapv2.LatLng(selectedLat_s, selectedLon_s));
+            });
+        });
 
-					var resultHtml = ""; // 검색 결과 HTML 초기화
+        $("#btn_search_start").click(function () { searchPOI($("#startKeyword").val(), "start"); });
+        $("#btn_select").click(function ()        { searchPOI($("#searchKeyword").val(), "end"); });
 
-					for(var k in resultpoisData){
+        $("#btn_search").click(function () {
+            if (!selectedLat_s || !selectedLon_s) { alert("출발지를 선택하세요."); return; }
+            if (!selectedLat_e || !selectedLon_e) { alert("도착지를 선택하세요."); return; }
+            $("#route_list").html("");
+            $("#result").text("경로 수집 중...");
+            clearAll();
+            collectAllRoutes();
+        });
+    }
 
-						var noorLat = Number(resultpoisData[k].noorLat);
-						var noorLon = Number(resultpoisData[k].noorLon);
+    // ── POI 검색 ──
+    function searchPOI(keyword, type) {
+        if (!keyword) { alert("검색어를 입력하세요."); return; }
+        $.ajax({
+            method: "GET",
+            headers: { appKey: "{{ tmap_app_key }}" },
+            url: "https://apis.openapi.sk.com/tmap/pois?version=1&format=json",
+            data: { searchKeyword: keyword, resCoordType: "EPSG3857", reqCoordType: "WGS84GEO", count: 5 },
+            success: function (response) {
+                var pois   = response.searchPoiInfo.pois.poi;
+                var listId = (type === "start") ? "#startResult" : "#searchResult";
+                markerArr.forEach(function (m) { m.setMap(null); });
+                markerArr = [];
+                var html = "";
+                pois.forEach(function (poi, k) {
+                    var pt  = new Tmapv2.Point(Number(poi.noorLon), Number(poi.noorLat));
+                    var wgs = new Tmapv2.Projection.convertEPSG3857ToWGS84GEO(pt);
+                    var lat = wgs._lat, lon = wgs._lng;
+                    markerArr.push(new Tmapv2.Marker({ position: new Tmapv2.LatLng(lat, lon), map: map, title: poi.name }));
+                    html += '<li class="search-item" data-lat="' + lat + '" data-lon="' + lon + '" data-type="' + type + '">' + poi.name + '</li>';
+                    if (k === 0) map.setCenter(new Tmapv2.LatLng(lat, lon));
+                });
+                $(listId).html(html);
+                $(listId + " .search-item").click(function () {
+                    $(listId + " .search-item").css("background", "");
+                    $(this).css("background", "#ddd");
+                    var lat = $(this).data("lat"), lon = $(this).data("lon"), t = $(this).data("type");
+                    if (t === "start") {
+                        selectedLat_s = lat; selectedLon_s = lon;
+                        $("#start_result").text("출발지: " + $(this).text().trim());
+                    } else {
+                        selectedLat_e = lat; selectedLon_e = lon;
+                        $("#end_result").text("도착지: " + $(this).text().trim());
+                    }
+                    map.setCenter(new Tmapv2.LatLng(lat, lon));
+                });
+            }
+        });
+    }
 
-						var name = resultpoisData[k].name;
+    // ── 경로 수집 ──
+    var collectedRoutes = [];
+    function collectAllRoutes() {
+        collectedRoutes = [];
+        fetchRouteSequential(0);
+    }
 
-						var pointCng =
-							new Tmapv2.Point(noorLon, noorLat);
+    function fetchRouteSequential(index) {
+        if (index >= routeConfigs.length) {
+            var unique = removeDuplicates(collectedRoutes);
+            sendToDjango(unique);
+            return;
+        }
+        var config = routeConfigs[index];
+        $.ajax({
+            dataType: "json", method: "POST",
+            headers: { appKey: "{{ tmap_app_key }}" },
+            url: "https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1&format=json",
+            data: {
+                startX: selectedLon_s, startY: selectedLat_s,
+                endX: selectedLon_e,   endY: selectedLat_e,
+                reqCoordType: "WGS84GEO", resCoordType: "WGS84GEO",
+                startName: "출발지", endName: "도착지",
+                searchOption: config.searchOption
+            },
+            success: function (response) {
+                var features = response.features;
+                var coords   = [];
+                features.forEach(function (f) {
+                    if (f.geometry.type === "LineString") {
+                        f.geometry.coordinates.forEach(function (c) {
+                            coords.push({ lat: c[1], lon: c[0] });
+                        });
+                    }
+                });
+                collectedRoutes.push({
+                    name: config.name, searchOption: config.searchOption,
+                    distance: features[0].properties.totalDistance / 1000,
+                    duration: features[0].properties.totalTime / 60,
+                    coords: coords
+                });
+                $("#result").text("경로 수집 중... (" + (index + 1) + "/" + routeConfigs.length + ")");
+                fetchRouteSequential(index + 1);
+            },
+            error: function () { fetchRouteSequential(index + 1); }
+        });
+    }
 
-						var projectionCng =
-							new Tmapv2.Projection.convertEPSG3857ToWGS84GEO(pointCng);
+    function removeDuplicates(routes) {
+        var unique = [];
+        routes.forEach(function (route) {
+            var coords = route.coords;
+            if (!coords.length) return;
+            var first = coords[0], last = coords[coords.length - 1], count = coords.length;
+            var isDup = unique.some(function (u) {
+                var uf = u.coords[0], ul = u.coords[u.coords.length - 1];
+                return uf.lat === first.lat && uf.lon === first.lon &&
+                       ul.lat === last.lat  && ul.lon === last.lon  &&
+                       u.coords.length === count;
+            });
+            if (!isDup) unique.push(route);
+        });
+        return unique;
+    }
 
-						var lat = projectionCng._lat;
-						var lon = projectionCng._lng;
+    // ── Django POST ──
+    function sendToDjango(routes) {
+        $("#result").text("안전지수 계산 중...");
+        fetch("/api/recommend/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCookie("csrftoken") },
+            body: JSON.stringify({ routes: routes })
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            routeData = data.routes;
+            renderRouteCards(routeData);
+            $("#result").text("경로 카드를 클릭하면 경로와 안전시설이 표시됩니다.");
+        })
+        .catch(function (err) { $("#result").text("오류: " + err.message); });
+    }
 
-						console.log(name);
-						console.log(lat, lon);
+    // ── 경로 카드 렌더링 ──
+    function renderRouteCards(routes) {
+        var html = "";
+        routes.forEach(function (route, idx) {
+            var color = routeColors[idx % routeColors.length];
+            html += '<div class="route-card" data-idx="' + idx + '" onclick="toggleRoute(' + idx + ')">' +
+                '<div class="score" style="color:' + color + '">' + route.total_score + '</div>' +
+                '<div class="label">' + route.name + '</div>' +
+                '<div class="label">' + route.distance.toFixed(1) + 'km / ' + Math.round(route.duration) + '분</div>' +
+                '<div class="label">경찰:' + route.police_score +
+                ' CCTV:' + route.cctv_score + '</div>' +
+                '<div class="label">보안등:' + route.security_score +
+                ' 가로등:' + route.streetlamp_score + '</div>' +
+                '</div>';
+        });
+        $("#route_list").html(html);
+    }
 
-						var markerPosition =
-							new Tmapv2.LatLng(lat, lon);
+    // ── 경로 + 시설 마커 토글 ──
+    function toggleRoute(idx) {
+        var card = $(".route-card[data-idx=" + idx + "]");
 
-						var marker = new Tmapv2.Marker({
-							position : markerPosition,
-							map : map,
-							title : name
-						});
+        if (activeLines[idx]) {
+            // 경로 + 시설 마커 숨김
+            activeLines[idx].setMap(null);
+            delete activeLines[idx];
 
-						markerArr.push(marker);
-						resultHtml += `
-						<li class="search-item"
-							data-lat="${lat}"
-							data-lon="${lon}">
-							${name}
-						</li>
-						`;
-						// 첫 번째 검색 결과로 지도 이동
-						if(k == 0){
-							map.setCenter(markerPosition);
-						}
-					}
-					$("#searchResult").html(resultHtml); // 검색 결과 HTML 업데이트
+            if (activeFacMarkers[idx]) {
+                activeFacMarkers[idx].forEach(function (m) { m.setMap(null); });
+                delete activeFacMarkers[idx];
+            }
+            card.removeClass("active");
+        } else {
+            // 경로 그리기
+            var route  = routeData[idx];
+            var color  = routeColors[idx % routeColors.length];
+            var path   = route.coords.map(function (c) { return new Tmapv2.LatLng(c.lat, c.lon); });
+            activeLines[idx] = new Tmapv2.Polyline({
+                path: path, strokeColor: color, strokeWeight: 5, map: map
+            });
 
-					$(".search-item").click(function(){ // 검색 결과 항목 클릭 시
+            // 시설 마커 표시
+            var facMarkers = [];
+            (route.facilities || []).forEach(function (fac) {
+                var iconUrl  = facilityIcons[fac.icon] || facilityIcons["default"];
+                var marker   = new Tmapv2.Marker({
+                    position: new Tmapv2.LatLng(fac.lat, fac.lon),
+                    icon:     iconUrl,
+                    iconSize: new Tmapv2.Size(16, 16),
+                    title:    facilityLabel[fac.icon] || fac.type,
+                    map:      map
+                });
+                facMarkers.push(marker);
+            });
+            activeFacMarkers[idx] = facMarkers;
 
-						$(".search-item").css("background", ""); // 모든 항목 배경 초기화
+            card.addClass("active");
+            if (path.length > 0) map.setCenter(path[0]);
+        }
+    }
 
-    					$(this).css("background", "#ddd"); // 클릭한 항목으로 배경 이동
+    function clearAll() {
+        Object.values(activeLines).forEach(function (p) { p.setMap(null); });
+        Object.values(activeFacMarkers).forEach(function (arr) {
+            arr.forEach(function (m) { m.setMap(null); });
+        });
+        activeLines      = {};
+        activeFacMarkers = {};
+        $(".route-card").removeClass("active");
+    }
 
-						selectedLat_e = $(this).data("lat");
-						selectedLon_e = $(this).data("lon");
-
-						console.log(selectedLat_e);
-						console.log(selectedLon_e);
-
-						var moveLatLon = new Tmapv2.LatLng(
-							selectedLat_e,
-							selectedLon_e
-						);
-
-						map.setCenter(moveLatLon);
-					});
-				},
-
-				error:function(request,status,error){
-					console.log(error);
-				}
-			});
-		});
-
-		$("#btn_search").click(function(){
-
-		if(!selectedLat_e || !selectedLon_e){
-			alert("목적지를 선택하세요.");
-			return;
-		}
-
-			navigator.geolocation.getCurrentPosition(function(position){
-
-				var currentLat = position.coords.latitude;
-				var currentLon = position.coords.longitude;
-
-			if(!currentLat || !currentLon){
-				alert("현재 위치를 가져오는 중입니다.");
-				return;
-			}
-
-			// 3. 경로탐색 API 사용요청
-			var headers = {};
-			headers["appKey"] = "{{ tmap_app_key }}";
-
-			$.ajax({
-				dataType: 'json',
-				method : "POST",
-					headers : headers,
-					url : "https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1&format=json",
-					async : false,
-					data : {
-						"startX" : currentLon,
-						"startY" : currentLat,
-						"endX" : selectedLon_e,
-						"endY" : selectedLat_e,
-						"reqCoordType" : "WGS84GEO",
-						"resCoordType" : "EPSG3857",
-						"startName" : "출발지",
-						"endName" : "도착지"
-					},
-					success : function(response) {
-						var resultData = response.features;
-
-						//결과 출력
-						var tDistance = "총 거리 : "
-								+ ((resultData[0].properties.totalDistance) / 1000)
-										.toFixed(1) + "km,";
-						var tTime = " 총 시간 : "
-								+ ((resultData[0].properties.totalTime) / 60)
-										.toFixed(0) + "분";
-
-						$("#result").text(tDistance + tTime);
-						
-						//기존 그려진 라인 & 마커가 있다면 초기화
-						if (resultdrawArr.length > 0) {
-							for ( var i in resultdrawArr) {
-								resultdrawArr[i]
-										.setMap(null);
-							}
-							resultdrawArr = [];
-						}
-						
-						drawInfoArr = [];
-
-						for ( var i in resultData) { //for문 [S]
-							var geometry = resultData[i].geometry;
-							var properties = resultData[i].properties;
-							var polyline_;
-
-
-							if (geometry.type == "LineString") {
-								for ( var j in geometry.coordinates) {
-									// 경로들의 결과값(구간)들을 포인트 객체로 변환 
-									var latlng = new Tmapv2.Point(
-											geometry.coordinates[j][0],
-											geometry.coordinates[j][1]);
-									// 포인트 객체를 받아 좌표값으로 변환
-									var convertPoint = new Tmapv2.Projection.convertEPSG3857ToWGS84GEO(
-											latlng);
-									// 포인트객체의 정보로 좌표값 변환 객체로 저장
-									var convertChange = new Tmapv2.LatLng(
-											convertPoint._lat,
-											convertPoint._lng);
-									// 배열에 담기
-									drawInfoArr.push(convertChange);
-								}
-							} else {
-								var markerImg = "";
-								var pType = "";
-								var size;
-
-								if (properties.pointType == "S") { //출발지 마커 수정 필요
-									markerImg = "https://apis.openapi.sk.com/tmap/imgs/marker/pin_r_m_s.png";
-									pType = "S";
-									size = new Tmapv2.Size(24, 38);
-								} else if (properties.pointType == "E") { //도착지 마커 수정 필요
-									markerImg = "https://apis.openapi.sk.com/tmap/imgs/marker/pin_r_m_e.png";
-									pType = "E";
-									size = new Tmapv2.Size(24, 38);
-								} else { //각 포인트 마커
-									markerImg = "https://apis.openapi.sk.com/tmap/imgs/point.png";
-									pType = "P";
-									size = new Tmapv2.Size(8, 8);
-								}
-
-								// 경로들의 결과값들을 포인트 객체로 변환 
-								var latlon = new Tmapv2.Point(
-										geometry.coordinates[0],
-										geometry.coordinates[1]);
-
-								// 포인트 객체를 받아 좌표값으로 다시 변환
-								var convertPoint = new Tmapv2.Projection.convertEPSG3857ToWGS84GEO(
-										latlon);
-
-								var routeInfoObj = {
-									markerImage : markerImg,
-									lng : convertPoint._lng,
-									lat : convertPoint._lat,
-									pointType : pType
-								};
-
-								// Marker 추가
-								marker_p = new Tmapv2.Marker(
-										{
-											position : new Tmapv2.LatLng(
-													routeInfoObj.lat,
-													routeInfoObj.lng),
-											icon : routeInfoObj.markerImage,
-											iconSize : size,
-											map : map
-										});
-							}
-						}//for문 [E]
-						drawLine(drawInfoArr);
-					},
-					error : function(request, status, error) {
-						console.log("API 호출 오류:");
-						console.log("code:" + request.status + "\n"
-								+ "message:" + request.responseText + "\n"
-								+ "error:" + error);
-					}
-
-				});
-
-			});
-		});
-	}//try 
-		catch (error) {
-			console.error("지도 초기화 중 오류 발생:", error);
-			document.getElementById("result").textContent = "지도 로딩 중 오류가 발생했습니다. 콘솔을 확인해주세요.";
-		}
-	}
-
-
-	function addComma(num) {
-		var regexp = /\B(?=(\d{3})+(?!\d))/g;
-		return num.toString().replace(regexp, ',');
-	}
-	
-	function drawLine(arrPoint) {
-		var polyline_;
-
-		polyline_ = new Tmapv2.Polyline({
-			path : arrPoint,
-			strokeColor : "#DD0000",
-			strokeWeight : 6,
-			map : map
-		});
-		resultdrawArr.push(polyline_);
-	}
+    function getCookie(name) {
+        var value = null;
+        document.cookie.split(";").forEach(function (c) {
+            c = c.trim();
+            if (c.startsWith(name + "=")) value = decodeURIComponent(c.substring(name.length + 1));
+        });
+        return value;
+    }
 </script>
 </head>
 <body onload="initTmap();">
-	<p><a href="{% url 'map:index' %}">Reload map</a></p>
-	<h1>Django Tmap 테스트</h1>
-	<p>페이지가 로드되었습니다. 지도가 아래에 표시되어야 합니다.</p>
+    <p><a href="{% url 'map:index' %}">Reload map</a></p>
+    <h1>안전 경로 탐색</h1>
 
-		<!-- 190430 기존 지도를 모두 이미지 처리 위해 주석 처리 S -->
-		<div id="map_wrap" class="map_wrap3">
-			<div id="map_div" style="width: 100%; height: 400px; border: 1px solid #ccc;"></div>
-		</div>
-		<div class="map_act_btn_wrap clear_box"></div>
-		<p id="result">경로를 탐색해보세요.</p>
-		<br />
-		<div>
-			<input type="text" id="searchKeyword">
-			<button id="btn_select">목적지 검색</button>
-		</div>
+    <div id="map_div" style="width:100%; height:400px; border:1px solid #ccc;"></div>
+    <div id="route_list" style="margin:8px 0;"></div>
+    <p id="result">경로를 탐색해보세요.</p>
 
+    <div>
+        <input type="text" id="startKeyword" placeholder="출발지 검색">
+        <button id="btn_search_start">검색</button>
+        <button id="btn_current">현위치</button>
+    </div>
+    <p id="start_result">출발지 미설정</p>
+    <ul id="startResult"></ul>
 
-		<div>
-			<button id="btn_search">경로 탐색</button>
-		</div>
+    <div>
+        <input type="text" id="searchKeyword" placeholder="도착지 검색">
+        <button id="btn_select">검색</button>
+    </div>
+    <p id="end_result">도착지 미설정</p>
+    <ul id="searchResult"></ul>
 
-		<ul id="searchResult"></ul>
-		
+    <div>
+        <button id="btn_search">경로 탐색</button>
+    </div>
 </body>
 </html>

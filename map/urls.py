@@ -5,4 +5,5 @@ app_name = 'map'
 
 urlpatterns = [
     path('', views.index, name='index'),
+    path('api/recommend/', views.recommend, name='recommend'),
 ]

@@ -24,11 +24,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 environ.Env.read_env(BASE_DIR / '.env')
 
 # 3. 코드에서 사용하기 
-SECRET_KEY = 'django-insecure-c$$_m8j4yws-=mtwej1k&8$3uyw^%#z$j*tubqz)s*103ye1(f'
+SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
-#TMAP_APP_KEY = env('TMAP_APP_KEY')
-TMAP_APP_KEY = 'qUnTOF5CvF5pb0wbvQ13b83kErTAvFDSa4OsT6Dt'
-#TMAP_APP_KEY = "qUnTOF5CvF5pb0wbvQ13b83kErTAvFDSa4OsT6Dt"
+TMAP_APP_KEY = env('TMAP_APP_KEY')
 
 ALLOWED_HOSTS = []
 
