@@ -1,0 +1,9 @@
+# Django Framework
+django>=5.0
+
+# 환경 변수 관리 (.env 파일 읽기용)
+django-environ
+
+pandas
+
+rtree
