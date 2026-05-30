@@ -17,7 +17,7 @@ def index(request):
     })
 
 
-@csrf_exempt
+#@csrf_exempt
 @require_http_methods(["POST"])
 def recommend(request):
     try:
@@ -30,6 +30,17 @@ def recommend(request):
         results = []
         for route in routes:
             scores = calc_safety_score(route, safety_index)
+
+            #지수 시간 반영 계산
+            raw_total_score = scores["total_score"]
+            duration_min = route.get("duration", 0)
+            
+            #시간 단위:분
+            if duration_min > 0:
+                adjusted_score = round((raw_total_score / duration_min), 1)
+            else:
+                adjusted_score = 0
+
             results.append({
                 "name":             route.get("name"),
                 "searchOption":     route.get("searchOption"),
@@ -40,7 +51,7 @@ def recommend(request):
                 "cctv_score":       scores["cctv_score"],
                 "security_score":   scores["security_score"],
                 "streetlamp_score": scores["streetlamp_score"],
-                "total_score":      scores["total_score"],
+                "total_score":      adjusted_score,
                 "facilities":       scores["facilities"],  # 마커 표시용
             })
 
