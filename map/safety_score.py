@@ -3,27 +3,25 @@ import math
 import pandas as pd
 from rtree import index
 
-# ──────────────────────────────────────────────
-# 반경 설정 (미터) - 수정이 필요하면 여기서만 바꾸세요
-# ──────────────────────────────────────────────
+# 반경 설정: m
 RADIUS = {
-    "police":     300,
-    "cctv":        50,
+    "police":      500,
+    "cctv":        100,
     "security":    30,
-    "streetlamp":  20,
+    "streetlamp":  30,
 }
 
-# 시설별 가중치 - 수정이 필요하면 여기서만 바꾸세요
+# 시설별 가중치
 WEIGHT = {
-    "경찰서":     10,
+    "경찰서":      10,
     "지구대":      7,
     "파출소":      5,
-    "cctv":        3,
-    "security":    2,
-    "streetlamp":  1,
+    "cctv":       3,
+    "security":   2,
+    "streetlamp": 1,
 }
 
-# CSV 파일 경로 - 실제 경로로 수정하세요
+# CSV 파일 경로
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATHS = {
     "police":     os.path.join(BASE_DIR, "data", "경찰서.csv"),
@@ -43,9 +41,8 @@ ICON_TYPE = {
 }
 
 
-# ──────────────────────────────────────────────
 # 유틸
-# ──────────────────────────────────────────────
+
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371000
     dlat = math.radians(lat2 - lat1)
@@ -59,9 +56,7 @@ def meters_to_deg(meters, lat=37.5):
     return lat_deg, lon_deg
 
 
-# ──────────────────────────────────────────────
 # 시설 데이터 로드 및 R-tree 인덱스 생성
-# ──────────────────────────────────────────────
 class SafetyIndex:
     def __init__(self):
         self.facilities = []
@@ -128,9 +123,7 @@ class SafetyIndex:
         print(f"[SafetyIndex] R-tree 인덱스 생성 완료")
 
 
-# ──────────────────────────────────────────────
 # 경로 안전지수 계산 + 포함 시설 목록 반환
-# ──────────────────────────────────────────────
 def calc_route_safety(coords, safety_index, facility_type, radius_m):
     """
     반환: { "score": float, "facilities": [{"lat", "lon", "type", "icon"}] }

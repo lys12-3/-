@@ -240,8 +240,9 @@
 </style>
 <script type="text/javascript">
     var map;
-    var markerArr     = [];
-    var routeData     = [];
+    var startMarkerArr = [];   // 출발지/현위치 마커
+    var endMarkerArr   = [];   // 도착지 마커
+    var routeData      = [];
     var activeLines   = {};
     var activeFacMarkers = {};
 
@@ -261,6 +262,9 @@
         "cctv":       "{% static 'map/images/cctv.png' %}",
         "security":   "{% static 'map/images/security.png' %}",
         "streetlamp": "{% static 'map/images/lamp.png' %}",
+        "startpoint": "{% static 'map/images/start_pin.png' %}",
+        "endpoint":   "{% static 'map/images/arrive_pin.png' %}",
+        "current":   "{% static 'map/images/current_pin.png' %}",
         "default":    "{% static 'map/images/default.png' %}" //기본값
     };
 
@@ -288,8 +292,21 @@
         navigator.geolocation.getCurrentPosition(function (pos) {
             selectedLat_s = pos.coords.latitude;
             selectedLon_s = pos.coords.longitude;
-            $("#start_status").text("현위치 설정됨");
-            $("#startKeyword").val("현재 위치");
+            $("#start_status").text("현위치로 설정됨");
+            $("#startKeyword").val("현위치");
+
+            // 출발지 마커만 초기화 (도착지 마커 유지)
+            startMarkerArr.forEach(function (m) { m.setMap(null); });
+            startMarkerArr = [];
+
+            var currentMarker = new Tmapv2.Marker({
+                position: new Tmapv2.LatLng(selectedLat_s, selectedLon_s),
+                map: map,
+                icon: facilityIcons["current"],
+                iconSize: new Tmapv2.Size(32, 32),
+                title: "현위치"
+            });
+            startMarkerArr.push(currentMarker);
             map.setCenter(new Tmapv2.LatLng(selectedLat_s, selectedLon_s));
         });
     }
@@ -297,7 +314,8 @@
     // ── POI 검색 ──
     function searchPOI(keyword, type) {
         if (!keyword) { alert("검색어를 입력하세요."); return; }
-        var resultId = (type === "start") ? "#startResults" : "#endResults";
+        var resultId  = (type === "start") ? "#startResults" : "#endResults";
+        var markerRef = (type === "start") ? startMarkerArr : endMarkerArr;
 
         $.ajax({
             method: "GET",
@@ -306,14 +324,23 @@
             data: { searchKeyword: keyword, resCoordType: "EPSG3857", reqCoordType: "WGS84GEO", count: 5 },
             success: function (response) {
                 var pois = response.searchPoiInfo.pois.poi;
-                markerArr.forEach(function (m) { m.setMap(null); });
-                markerArr = [];
+
+                // 해당 타입 마커만 초기화 (반대쪽 마커 유지)
+                markerRef.forEach(function (m) { m.setMap(null); });
+                markerRef.length = 0;
+
                 var html = "";
                 pois.forEach(function (poi, k) {
                     var pt  = new Tmapv2.Point(Number(poi.noorLon), Number(poi.noorLat));
                     var wgs = new Tmapv2.Projection.convertEPSG3857ToWGS84GEO(pt);
                     var lat = wgs._lat, lon = wgs._lng;
-                    markerArr.push(new Tmapv2.Marker({ position: new Tmapv2.LatLng(lat, lon), map: map, title: poi.name }));
+                    var markerIcon = (type === "start") ? facilityIcons["startpoint"] : facilityIcons["endpoint"];
+                    markerRef.push(new Tmapv2.Marker({
+                        position: new Tmapv2.LatLng(lat, lon),
+                        map: map, title: poi.name,
+                        icon: markerIcon,
+                        iconSize: new Tmapv2.Size(32, 38)
+                    }));
                     html += '<li data-lat="' + lat + '" data-lon="' + lon + '" data-type="' + type + '">' + poi.name + '</li>';
                     if (k === 0) map.setCenter(new Tmapv2.LatLng(lat, lon));
                 });
@@ -321,8 +348,13 @@
                 $(resultId + " li").click(function () {
                     $(resultId + " li").removeClass("selected");
                     $(this).addClass("selected");
-                    var lat = $(this).data("lat"), lon = $(this).data("lon"), t = $(this).data("type");
+
+                    var lat  = $(this).data("lat");
+                    var lon  = $(this).data("lon");
+                    var t    = $(this).data("type");
                     var name = $(this).text().trim();
+                    var clickedIndex = $(this).index();
+
                     if (t === "start") {
                         selectedLat_s = lat; selectedLon_s = lon;
                         $("#startKeyword").val(name);
@@ -332,6 +364,15 @@
                         $("#searchKeyword").val(name);
                         $("#end_status").text("도착지 설정됨");
                     }
+
+                    // 선택된 마커만 남기고 나머지 제거
+                    var selectedMarker = markerRef[clickedIndex];
+                    markerRef.forEach(function (m, idx) {
+                        if (idx !== clickedIndex) m.setMap(null);
+                    });
+                    markerRef.length = 0;
+                    if (selectedMarker) markerRef.push(selectedMarker);
+
                     $(resultId).hide();
                     map.setCenter(new Tmapv2.LatLng(lat, lon));
                 });
@@ -407,7 +448,10 @@
             headers: { "Content-Type": "application/json", "X-CSRFToken": getCookie("csrftoken") },
             body: JSON.stringify({ routes: routes })
         })
-        .then(function (res) { return res.json(); })
+        .then(function (res) {
+            if (!res.ok) return res.text().then(function (txt) { throw new Error('HTTP ' + res.status + ': ' + txt); });
+            return res.json();
+        })
         .then(function (data) {
             setSearching(false);
             routeData = data.routes;
@@ -524,7 +568,7 @@
                         <input type="text" id="startKeyword" placeholder="출발지 입력">
                     </div>
                     <button class="btn-icon btn-primary-icon" id="btn_search_start" title="검색">🔍</button>
-                    <button class="btn-icon btn-primary-icon" id="btn_current" title="현재 위치">📍</button>
+                    <button class="btn-icon btn-primary-icon" id="btn_current" title="현위치">📍</button>
                 </div>
                 <div class="search-result-wrap" id="startResults" style="display:none;"></div>
                 <div class="status-text" id="start_status">출발지 미설정</div>
@@ -579,7 +623,7 @@
     </div>
 
     <!-- 현위치 버튼 -->
-    <button id="btn_location" title="내 위치">📍</button>
+    <button id="btn_location" title="현위치">📍</button>
 </div>
 
 </body>

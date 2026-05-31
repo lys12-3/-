@@ -14,26 +14,19 @@ import os
 import environ
 from pathlib import Path
 
-# 1. 환경 변수를 읽어올 객체 생성
+
 env = environ.Env(
     DEBUG=(bool, False) # 기본값 설정
 )
 
-# 2. .env 파일을 읽어오기
 BASE_DIR = Path(__file__).resolve().parent.parent
 environ.Env.read_env(BASE_DIR / '.env')
 
-# 3. 코드에서 사용하기 
-"""
 SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
 TMAP_APP_KEY = env('TMAP_APP_KEY')
-"""
-SECRET_KEY = 'django-insecure-c$$_m8j4yws-=mtwej1k&8$3uyw^%#z$j*tubqz)s*103ye1(f'
-DEBUG = True
-TMAP_APP_KEY = 'qUnTOF5CvF5pb0wbvQ13b83kErTAvFDSa4OsT6Dt'
 
-ALLOWED_HOSTS = []
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -43,8 +36,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
 ALLOWED_HOSTS = ['*']
 
 
@@ -136,6 +127,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

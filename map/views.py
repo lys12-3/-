@@ -17,7 +17,7 @@ def index(request):
     })
 
 
-#@csrf_exempt
+@csrf_exempt
 @require_http_methods(["POST"])
 def recommend(request):
     try:
