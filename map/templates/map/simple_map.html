@@ -303,7 +303,7 @@
                 position: new Tmapv2.LatLng(selectedLat_s, selectedLon_s),
                 map: map,
                 icon: facilityIcons["current"],
-                iconSize: new Tmapv2.Size(32, 32),
+                iconSize: new Tmapv2.Size(30, 32),
                 title: "현위치"
             });
             startMarkerArr.push(currentMarker);
@@ -339,7 +339,7 @@
                         position: new Tmapv2.LatLng(lat, lon),
                         map: map, title: poi.name,
                         icon: markerIcon,
-                        iconSize: new Tmapv2.Size(32, 38)
+                        iconSize: new Tmapv2.Size(30, 32)
                     }));
                     html += '<li data-lat="' + lat + '" data-lon="' + lon + '" data-type="' + type + '">' + poi.name + '</li>';
                     if (k === 0) map.setCenter(new Tmapv2.LatLng(lat, lon));
@@ -482,7 +482,7 @@
                     '<span class="score">' + route.total_score + '</span>' +
                 '</div>' +
                 '<div class="facility-grid">' +
-                    '<div class="facility-item"><span class="facility-icon">🚓</span><span class="facility-label">경찰</span><span class="facility-count">' + route.police_score + '</span></div>' +
+                    '<div class="facility-item"><span class="facility-icon">🚓</span><span class="facility-label">경찰서</span><span class="facility-count">' + route.police_score + '</span></div>' +
                     '<div class="facility-item"><span class="facility-icon">📹</span><span class="facility-label">CCTV</span><span class="facility-count">' + route.cctv_score + '</span></div>' +
                     '<div class="facility-item"><span class="facility-icon">💡</span><span class="facility-label">보안등</span><span class="facility-count">' + route.security_score + '</span></div>' +
                     '<div class="facility-item"><span class="facility-icon">🔦</span><span class="facility-label">가로등</span><span class="facility-count">' + route.streetlamp_score + '</span></div>' +
@@ -511,7 +511,7 @@
                 fms.push(new Tmapv2.Marker({
                     position: new Tmapv2.LatLng(fac.lat, fac.lon),
                     icon: facilityIcons[fac.icon] || facilityIcons["cctv"],
-                    iconSize: new Tmapv2.Size(16, 16),
+                    iconSize: new Tmapv2.Size(20, 24),
                     title: fac.type, map: map
                 }));
             });

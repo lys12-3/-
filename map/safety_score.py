@@ -15,8 +15,8 @@ RADIUS = {
 WEIGHT = {
     "경찰서":      10,
     "지구대":      7,
-    "파출소":      5,
-    "cctv":       3,
+    "파출소":      7,
+    "cctv":       4,
     "security":   2,
     "streetlamp": 1,
 }
